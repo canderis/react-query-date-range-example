@@ -87,27 +87,8 @@ const makeData = (params: any): CData[] => {
   return out;
 };
 
-const useInfiniteCData = (id: string) => {
-  const queryClient = useQueryClient();
-
-  return useMemo(() => new InfiniteQueryObserver<CData[]>(queryClient, {
-    queryKey: ['quotefeed', id],
-    queryFn: ({pageParam}) => {
-      const data = makeData(pageParam) as CData[];
-      console.log('here', data);
-      return data;
-    },
-    staleTime: Infinity,
-    refetchInterval: Infinity,
-    initialData: {
-      pages: [[]],
-      pageParams: []
-    }
-  }), [id, queryClient]);
-}
 
 const useInfiniteCDataQuery = (id: string) => {
-  const queryClient = useQueryClient();
   return useInfiniteQuery({
     queryKey: ['quotefeed', id],
     queryFn: ({pageParam}) => {
@@ -127,8 +108,6 @@ const useInfiniteCDataQuery = (id: string) => {
 const useQuoteFeed = (id?: string) => {
 
   // In real application the system has to pick one of 3 data observers based on the ID. Omitted for this example.
-  const dataObserver = useInfiniteCData('key');
-
   const {fetchNextPage }= useInfiniteCDataQuery('key');
 
   const fetchInitialData = useFetchInitialData({fetchData: fetchNextPage});
