@@ -3,7 +3,7 @@ import { NamedExoticComponent, memo, useCallback, useEffect, useMemo } from "rea
 import styles from './app.module.css';
 
 import NxWelcome from './nx-welcome';
-import { InfiniteQueryObserver, QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { FetchNextPageOptions, InfiniteQueryObserver, InfiniteQueryObserverResult, QueryClient, QueryClientProvider, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { last } from "lodash";
 
 import {sub} from 'date-fns';
@@ -19,8 +19,10 @@ interface QuoteFeed {
   // fetchPaginationData: (dataType: string, startDate: Date, endDate: Date, cb: QuoteFeedCB) => void;
 }
 
+type FetchNextPageFn =(params?: FetchNextPageOptions) => Promise<InfiniteQueryObserverResult<CData[], unknown>>;
+
 interface UseFetchInitialDataParams {
-  dataObserver: InfiniteQueryObserver<CData[]>;
+  fetchData: FetchNextPageFn;
 }
 
 type FetchInitialData = (
@@ -37,12 +39,12 @@ type FetchUpdateData = (
   cb: QuoteFeedCB
 ) => void
 
-const useFetchInitialData = ({dataObserver}: UseFetchInitialDataParams): FetchInitialData => {
+const useFetchInitialData = ({fetchData}: UseFetchInitialDataParams): FetchInitialData => {
 
   return useCallback(async (dataType, startDate, endDate, cb) => {
     console.log('fetch initial data');
 
-    await dataObserver.fetchNextPage({
+    await fetchData({
       pageParam: { dataType,
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
@@ -58,12 +60,12 @@ const useFetchInitialData = ({dataObserver}: UseFetchInitialDataParams): FetchIn
 }
 
 
-const useFetchUpdateData = ({dataObserver}: UseFetchInitialDataParams): FetchUpdateData => {
+const useFetchUpdateData = ({fetchData}: UseFetchInitialDataParams): FetchUpdateData => {
 
   return useCallback(async (dataType, startDate, cb) => {
     console.log('fetch update data');
 
-    await dataObserver.fetchNextPage({
+    await fetchData({
       pageParam: { dataType,
       startDate: startDate.toISOString(),
     },
@@ -104,13 +106,33 @@ const useInfiniteCData = (id: string) => {
   }), [id, queryClient]);
 }
 
+const useInfiniteCDataQuery = (id: string) => {
+  const queryClient = useQueryClient();
+  return useInfiniteQuery({
+    queryKey: ['quotefeed', id],
+    queryFn: ({pageParam}) => {
+      const data = makeData(pageParam) as CData[];
+      console.log('here', data);
+      return data;
+    },
+    staleTime: Infinity,
+    refetchInterval: Infinity,
+    initialData: {
+      pages: [[]],
+      pageParams: []
+    }
+  })
+}
+
 const useQuoteFeed = (id?: string) => {
 
   // In real application the system has to pick one of 3 data observers based on the ID. Omitted for this example.
   const dataObserver = useInfiniteCData('key');
 
-  const fetchInitialData = useFetchInitialData({dataObserver});
-  const fetchUpdateData = useFetchUpdateData({dataObserver})
+  const {fetchNextPage }= useInfiniteCDataQuery('key');
+
+  const fetchInitialData = useFetchInitialData({fetchData: fetchNextPage});
+  const fetchUpdateData = useFetchUpdateData({fetchData: fetchNextPage})
 
   const quoteFeed = useMemo<QuoteFeed>(() => {
     return {
